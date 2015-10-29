@@ -23,12 +23,21 @@ def c_logout(p, ctx, args):
 def c_exit(p, ctx, args):
     sys.exit(0)
 
+class ConfigMode(cli.Mode):
+    def __init__(self, ctx, args):
+        super(ConfigMode, self).__init__('config')
+
+        self.add_commands([
+            [ "no", None, "Remove or negate configuration" ],
+        ])
+        self.add_commands(lb.config_commands)
+
 global_mode = cli.Mode('raxtool')
-global_mode.add_commands(lb.commands)
+global_mode.add_commands(lb.global_commands)
 #global_mode.add_commands(rax.cdn.commands)
-global_mode.add_command("no", None, "Remove or negate configuration")
 global_mode.add_command("show", None, "Display configuration and status information")
 global_mode.add_command("exit", c_exit, "Exit raxtool")
+global_mode.add_command("configure", cli.set_mode(ConfigMode), "Enter configuration mode")
 
 p = cli.Parser(ctx, global_mode)
 

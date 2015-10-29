@@ -52,6 +52,9 @@ class CommandNode(object):
         return self._children[name]
 
     def child_match(self, name):
+        if name in self._children:
+            return [ name ]
+
         return [ k for k, v in self._children.iteritems() if k[0:len(name)] == name ]
 
     @property
@@ -135,7 +138,7 @@ class Mode(object):
             matches.sort()
 
             for match in matches:
-                sys.stdout.write("  {:<15}    {}\n".format(match, at.child(match).help))
+                sys.stdout.write("  {:<30}    {}\n".format(match, at.child(match).help))
 
             if at.handler is not None:
                 sys.stdout.write("  <cr>\n")
@@ -181,7 +184,7 @@ class Parser(object):
         self.mode.do_help(ctx, char)
 
     def do_tab(self, ctx, char):
-        self.mode.do_help(ctx, char)
+        self.mode.do_tab(ctx, char)
 
     def run(self):
         self.linereader.bind('?', self.do_help)
@@ -196,13 +199,16 @@ class Parser(object):
             prompt = "{}{}> ".format(self.modes[0].prompt, mode_prompt)
 
             cmd = self.linereader.readline(prompt)
+            if cmd.strip() == '':
+                continue
+
             try:
                 self.mode.dispatch(self, cmd)
-            except Exception, e:
+            except CLIError, e:
                 print("% {}".format(e))
 
 def _do_set_mode(mode, ctargs, parser, ctx, args):
-    m = mode(args, *ctargs)
+    m = mode(ctx, args, *ctargs)
     parser.modes.append(m)
 
 def set_mode(mode, *ctargs):

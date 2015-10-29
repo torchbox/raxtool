@@ -33,8 +33,8 @@ class Service(object):
     def post(self, url, data={}):
         return self.ctx.post("{}/{}".format(self.url, url), data)
 
-    def get(self, url):
-        return self.ctx.get("{}/{}".format(self.url, url))
+    def get(self, url, data = {}):
+        return self.ctx.get("{}/{}".format(self.url, url, data))
 
     def delete(self, url):
         return self.ctx.delete("{}/{}".format(self.url, url))
@@ -73,7 +73,7 @@ class Context(object):
         except KeyError:
             return None
 
-    def get(self, url):
+    def get(self, url, data = {}):
         token = self.get_token()
         headers = {
             'Accept': 'application/json',
@@ -83,7 +83,7 @@ class Context(object):
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            r = requests.get(url, headers = headers)
+            r = requests.get(url, data, headers = headers)
             return r
 
     def delete(self, url):

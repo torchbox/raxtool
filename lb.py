@@ -1,15 +1,19 @@
 # vim:set sw=4 ts=4 et:
 
-import dateutil
+import dateutil, sys
+from OpenSSL import crypto
+from functools import partial
 from texttable import Texttable
 import cli
-import rax.api
+from rax import api
+from rax.lb import LoadBalancer
 
 def c_show(p, ctx, args):
     svc = ctx.service('cloudLoadBalancers')
 
     r = svc.get("loadbalancers")
-    j = svc.json()
+    j = r.json()
+
     t = Texttable()
     t.set_cols_width([ 15, 5, 5, 5, 55 ])
     t.set_cols_align([ 'l', 'r', 'l', 'r', 'l' ])
@@ -25,33 +29,74 @@ def c_show(p, ctx, args):
     ])
     print t.draw()
 
-def c_show_lb(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
+def c_no_lb(p, ctx, args):
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
+    lb.delete()
 
-    t = Texttable()
-    t.add_rows([
-        [ 'Name',                   lb.name ],
-        [ 'Protocol',               lb.protocol ],
-        [ 'Port',                   lb.port ],
-        [ 'Algorithm',              lb.algorithm ],
-        [ 'Status',                 lb.status ],
-        [ 'Timeout',                "{} seconds".format(lb.timeout) ],
-        [ 'Logging',                "ON" if lb.connection_logging_enabled is None else "OFF" ],
-        [ 'IP addresses',           "\n".join([ str(v) for v in lb.virtual_ips ]) ],
-        [ 'Nodes',                  "\n".join([ "{} ({}, {})".format(n, n.condition, n.status) for n in lb.nodes ]) ],
-        [ 'Session persistence',    "OFF" if lb.session_persistence_type is None else lb.session_persistence_type ],
-        [ 'Cluster',                lb.cluster ],
-        [ 'Created',                lb.created ],
-        [ 'Updated',                lb.updated ],
-    ], False)
-    print t.draw()
+def c_show_lb(p, ctx, args):
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
+
+    nodes = "\n".join([
+        "     {address}:{port} ({condition}, {status})".format(
+            address = node.address,
+            port = node.port,
+            condition = node.condition,
+            status = node.status
+       ) for node in lb.nodes
+    ])
+
+    ips = ", ".join([ str(v) for v in lb.virtual_ips ])
+    usage = lb.usage
+
+    print(
+"""Load balancer {name}, id {id} on {cluster}
+  Protocol {protocol}, port {port}.
+  Load balancing algorithm is {algorithm}, timeout = {timeout} seconds.
+  Logging {logging}.
+  Session persistence {persist}.
+  Status: {status}
+  IP addresses: {ips}.
+  Nodes:
+{nodes}
+  1 hour input rate {in_bytes} bytes/sec, average connections {avg_conn:0.2}
+  1 hour output rate {out_bytes} bytes/sec
+""".format(
+    name = lb.name,
+    id = lb.id,
+    protocol = lb.protocol,
+    port = lb.port,
+    cluster = lb.cluster,
+    algorithm = lb.algorithm,
+    timeout = lb.timeout,
+    logging = "enabled" if lb.connection_logging_enabled else "disabled",
+    persist = "disabled" if lb.session_persistence_type is None else lb.session_persistence_type,
+    status = lb.status,
+    nodes = nodes,
+    ips = ips,
+    created = lb.created,
+    updated = lb.updated,
+    in_bytes = usage['incoming_bytes_per_second'],
+    out_bytes = usage['outgoing_bytes_per_second'],
+    avg_conn = usage['average_connections']))
 
 def c_show_lb_nodes(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
     print "\n".join([ str(n) for n in lb.nodes ])
 
 def c_show_lb_node(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
 
     for n in lb.nodes:
         if str(n) == args[1]:
@@ -63,52 +108,141 @@ def c_show_lb_node(p, ctx, args):
     raise cli.CLIError("Load balancer node {} not found".format(args[1]))
 
 def c_show_lb_protocol(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
     print lb.protocol
 
 def c_show_lb_port(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
     print lb.port
 
 def c_show_lb_algorithm(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
     print lb.algorithm
 
 def c_show_lb_cluster(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
     print lb.cluster
 
 def c_show_lb_addresses(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
     print "\n".join([ str(v) for v in lb.virtual_ips ])
 
 def c_show_lb_ssl(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
     ssl = lb.ssl
 
-    t = Texttable()
-    if ssl.enabled:
-        t.add_rows([
-            [ 'Enabled',                'ON' ],
-            [ 'Port',                   ssl.port ],
-            [ 'Secure traffic only',    'ON' if ssl.secure_only else 'OFF' ],
-        ], False)
-    else:
-        t.add_rows([
-            [ 'Enabled',                'OFF' ],
-        ], False)
+    if not ssl.enabled:
+        print("SSL not configured.")
+        return
 
-    print t.draw()
+    print("SSL enabled, port {}, {}".format(ssl.port, "secure traffic only" if ssl.secure_only else "insecure traffic permitted"))
+    print("Certificate: ")
+
+    cert = crypto.load_certificate(crypto.FILETYPE_PEM, ssl.certificate.replace("\n\n", "\n"))
+
+    subject = "".join([ "/{}={}".format(c[0], c[1]) for c in cert.get_subject().get_components() ])
+    sys.stdout.write("  Subject: {}\n".format(subject))
+
+    extensions = { cert.get_extension(i).get_short_name(): cert.get_extension(i) for i in range(0, cert.get_extension_count()) }
+    if 'subjectAltName' in extensions:
+        sys.stdout.write("  Alternative subject names: {}\n".format(extensions['subjectAltName']._subjectAltNameString()))
 
 def c_show_lb_ssl_certs(p, ctx, args):
-    lb = LoadBalancer.by_name(ctx, args[0])
-    print "\n".join([ m.hostname for m in lb.ssl_mappings ])
+    try:
+        lb = LoadBalancer.by_name(ctx, args[0])
+    except api.Error, e:
+        raise cli.Error(e)
 
+    for map in lb.ssl_mappings:
+        r = lb.svc.get("loadbalancers/{}/ssltermination/certificatemappings/{}".format(lb.id, map.id))
+
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM, r.json()['certificateMapping']['certificate'].replace("\n\n", "\n"))
+
+        sys.stdout.write("{}:\n".format(map.hostname))
+        subject = "".join([ "/{}={}".format(c[0], c[1]) for c in cert.get_subject().get_components() ])
+        sys.stdout.write("  Subject: {}\n".format(subject))
+
+        extensions = { cert.get_extension(i).get_short_name(): cert.get_extension(i) for i in range(0, cert.get_extension_count()) }
+        if 'subjectAltName' in extensions:
+            sys.stdout.write("  Alternative subject names: {}\n".format(extensions['subjectAltName']._subjectAltNameString()))
+
+class LBNodeMode(cli.Mode):
+    def __init__(self, ctx, args, lb):
+        super(LBNodeMode, self).__init__('node')
+
+        bits = args[0].split(':')
+        if len(bits) != 2:
+            raise cli.CLIError("Node name should be in the form address:port")
+
+        self.lb = lb
+        self.node = None
+
+        for node in self.lb.nodes:
+            if "{}:{}".format(node.address, node.port) == args[0]:
+                self.node = node
+                break
+
+        if self.node is None:
+            sys.stdout.write("% Creating new node.\n")
+            self.node = LoadBalancer.Node(self.lb, {
+                'address': bits[0],
+                'port': bits[1],
+                'condition': LoadBalancer.Node.CONDITION_ENABLED,
+                'type': LoadBalancer.Node.TYPE_PRIMARY,
+            })
+
+        self.add_commands([
+            [ 'enable', self.c_disable, 'Enable node' ],
+            [ 'disable', self.c_disable, 'Disable node' ],
+            [ 'drain', self.c_drain, 'Drain node' ],
+            [ 'primary', self.c_primary, 'Make node primary' ],
+            [ 'secondary', self.c_secondary, 'Make node secondary' ],
+            [ 'commit', self.c_commit, 'Commit pending changes' ],
+        ])
+
+    def c_disable(self, p, ctx, args):
+        self.node.condition = LoadBalancer.Node.CONDITION_DISABLED
+
+    def c_enable(self, p, ctx, args):
+        self.node.condition = LoadBalancer.Node.CONDITION_ENABLED
+
+    def c_drain(self, p, ctx, args):
+        self.node.condition = LoadBalancer.Node.CONDITION_DRAINING
+
+    def c_primary(self, p, ctx, args):
+        self.node.type = LoadBalancer.Node.TYPE_PRIMARY
+
+    def c_secondary(self, p, ctx, args):
+        self.node.type = LoadBalancer.Node.TYPE_SECONDARY
+
+    def c_commit(self, parser, ctx, args):
+        try:
+            self.node.save()
+        except api.Error, e:
+            raise cli.CLIError(str(e))
 
 class LBSSLMode(cli.Mode):
-    def __init__(self, args, lbname):
+    def __init__(self, ctx, args, lb):
         super(LBSSLMode, self).__init__('ssl')
-        self.lbname = lbname
+        self.lb = lb
         self.add_commands([
             [ 'map', None, "Add a new SSL certificate map" ],
             [ 'map host', None, "Certificate domain" ],
@@ -119,7 +253,6 @@ class LBSSLMode(cli.Mode):
         ])
 
     def c_map(self, p, ctx, args):
-        lb = LoadBalancer.by_name(ctx, self.lbname)
         host = args[0]
 
         try:
@@ -140,11 +273,9 @@ class LBSSLMode(cli.Mode):
         except:
             raise cli.CLIError("Certificate file <{}> not found".format(args[4]))
 
-        lb.add_ssl_mapping(host, key, cert, chain)
+        self.lb.add_ssl_mapping(host, key, cert, chain)
 
     def c_no_map(self, p, ctx, args):
-        lb = LoadBalancer.by_name(ctx, self.lbname)
-
         mapping = None
         for cm in lb.ssl_mappings:
             if cm.hostname == args[1]:
@@ -157,18 +288,97 @@ class LBSSLMode(cli.Mode):
         mapping.delete()
 
 class LBMode(cli.Mode):
-    def __init__(self, args):
+    def __init__(self, ctx, args):
         super(LBMode, self).__init__('lb')
+
         self.lbname = args[0]
+
+        try:
+            self.lb = LoadBalancer.by_name(ctx, self.lbname)
+            if self.lb.status in ['BUILD', 'PENDING_UPDATE', 'PENDING_DELETE', 'DELETED']:
+                raise cli.CLIError("Cannot configure a load balancer in {} state".format(self.lb.status))
+        except LoadBalancer.NotFound:
+            self.lb = LoadBalancer(ctx, None)
+            self.lb.name = self.lbname
+            sys.stdout.write("% Creating new load balancer.\n")
+            self.add_commands([
+                [ 'ip-type', None, 'Set incoming IP address type' ],
+                [ 'ip-type public', self.c_ip_type_public, 'Public Internet IP address' ],
+                [ 'ip-type servicenet', self.c_ip_type_servicenet, 'Rackspace ServiceNet IP address' ],
+            ])
+
         self.add_commands([
-            [ 'ssl', cli.set_mode(LBSSLMode, self.lbname), "Configure SSL parameters" ],
+            [ 'port', None, 'Incoming port' ],
+            [ 'port <port>', self.c_port ],
+            [ 'protocol', None, 'Incoming protocol' ],
+            [ 'protocol <protocol>', self.c_protocol ],
+            [ 'half-closed', self.c_half_closed, 'Enable half-closed connection support' ],
+            [ 'ssl', cli.set_mode(LBSSLMode, self.lb), "Configure SSL parameters" ],
+            [ 'node', None,  "Configure origin nodes" ],
+            [ 'node <address:port>', cli.set_mode(LBNodeMode, self.lb) ],
+            [ 'algorithm', None, 'Select load balancing algorithm' ],
+            [ 'algorithm least-connections', 
+                partial(self.c_algorithm, LoadBalancer.ALGORITHM_LEAST_CONNECTIONS),
+                "Route requests to node with fewest connections" ],
+            [ 'algorithm random',
+                partial(self.c_algorithm, LoadBalancer.ALGORITHM_RANDOM), 
+                'Select node at random' ],
+            [ 'algorithm round-robin',
+                partial(self.c_algorithm, LoadBalancer.ALGORITHM_ROUND_ROBIN),
+                'Use each node in turn' ],
+            [ 'algorithm weighted-least-connections', 
+                partial(self.c_algorithm, LoadBalancer.ALGORITHM_WEIGHTED_LEAST_CONNECTIONS),
+                "As least-connections, but with node weight considered"],
+            [ 'algorithm weighted-round-robin',
+                partial(self.c_algorithm, LoadBalancer.ALGORITHM_WEIGHTED_ROUND_ROBIN),
+                "As round-robin, but with node weight considered"],
+            [ 'no', None, 'Remove or negate configuration options' ],
+            [ 'no half-closed', self.c_no_half_closed, 'Disable half-closed connection support ' ],
+            [ 'no node', None, 'Remove a node' ],
+            [ 'no node <address:port>', self.c_no_node ],
+            [ 'commit', self.c_commit, 'Commit pending changes' ],
         ])
 
-    @property
-    def prompt(self):
-        return "lb[{}]".format(self.lbname)
+    def c_no_node(self, parser, ctx, args):
+        for node in self.lb.nodes:
+            if "{}:{}".format(node.address, node.port) == args[0]:
+                node.delete()
+                return
+        raise cli.CLIError("Node not configured.")
 
-commands = [
+    def c_ip_type_public(self, parser, ctx, args):
+        self.lb._ip_type = LoadBalancer.IP_TYPE_PUBLIC
+
+    def c_ip_type_servicenet(self, parser, ctx, args):
+        self.lb._ip_type = LoadBalancer.IP_TYPE_SERVICENET
+
+    def c_algorithm(self, algorithm, parser, ctx, args):
+        self.lb.algorithm = algorithm
+
+    def c_port(self, parser, ctx, args):
+        self.lb.port = args[0]
+
+    def c_protocol(self, parser, ctx, args):
+        self.lb.protocol = args[0]
+
+    def c_half_closed(self, parser, ctx, args):
+        self.lb.half_closed = True
+
+    def c_no_half_closed(self, parser, ctx, args):
+        self.lb.half_closed = False
+
+    def c_commit(self, parser, ctx, args):
+        if self.lb.port == None:
+            raise cli.CLIError("Port must be configured for a new load balancer.")
+        if self.lb.protocol == None:
+            raise cli.CLIError("Protocol must be configured for a new load balancer.")
+        
+        try:
+            self.lb.save()
+        except api.Error, e:
+            raise cli.CLIError(str(e))
+
+global_commands = [
     [ 'show lb', c_show, "Cloud Load Balancer" ],
     [ 'show lb <name>', c_show_lb, "Load balancer name" ],
     [ 'show lb <name> ssl', c_show_lb_ssl, "SSL termination configuration" ],
@@ -180,6 +390,11 @@ commands = [
     [ 'show lb <name> cluster', c_show_lb_cluster, "Rackspace cluster name" ],
     [ 'show lb <name> addresses', c_show_lb_addresses, "Incoming IP addresses" ],
     [ 'show lb <name> ssl maps', c_show_lb_ssl_certs, "SSL certificate maps" ],
+]
+
+config_commands = [
     [ 'lb', None, "Configure Cloud Load Balancer" ],
     [ 'lb <name>', cli.set_mode(LBMode), "Load balancer name" ],
+    [ 'no lb', None, 'Remove load balancer' ],
+    [ 'no lb <name>', c_no_lb ],
 ]

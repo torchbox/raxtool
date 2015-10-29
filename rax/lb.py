@@ -1,19 +1,39 @@
 # vim:set sw=4 ts=4 et:
 
-import dateutil
+import dateutil, datetime, pytz
+from functools import partial
+from copy import copy
 from texttable import Texttable
 import cli
-import rax.api
+from rax import api
 
 class LoadBalancer(object):
-    class NotFound(rax.api.Error):
+    IP_TYPE_PUBLIC = 0
+    IP_TYPE_SERVICENET = 1
+
+    ALGORITHM_ROUND_ROBIN = 'ROUND_ROBIN'
+    ALGORITHM_WEIGHTED_ROUND_ROBIN = 'WEIGHTED_ROUND_ROBIN'
+    ALGORITHM_LEAST_CONNECTIONS = 'LEAST_CONNECTIONS'
+    ALGORITHM_WEIGHTED_LEAST_CONNECTIONS = 'WEIGHTED_LEAST_CONNECTIONS'
+    ALGORITHM_RANDOM = 'RANDOM'
+
+    class NotFound(api.Error):
         pass
 
     def __init__(self, ctx, id):
         self.id = id
         self.ctx = ctx
         self.svc = ctx.service('cloudLoadBalancers')
-        self.fetch()
+        self._modified = False
+
+        if id is not None:
+            self.fetch()
+        else:
+            self.details = {
+                'port': '80',
+                'protocol': 'HTTP',
+            }
+            self._ip_type = LoadBalancer.IP_TYPE_PUBLIC
 
     @staticmethod
     def by_id(ctx, id):
@@ -29,27 +49,107 @@ class LoadBalancer(object):
             if l['name'] == name:
                 return LoadBalancer(ctx, l['id'])
 
-        raise rax.api.Error('Load balancer "{}" not found'.format(name))
+        raise LoadBalancer.NotFound('Load balancer "{}" not found'.format(name))
         
+    def delete(self):
+        svc = self.ctx.service('cloudLoadBalancers')
+        r = svc.delete("loadbalancers/{}".format(self.id))
+        if r.status_code != 202:
+            raise api.Error("{}: {}".format(r.reason, r.json()['message']))
+
+    def save(self):
+        if not self._modified:
+            return
+
+        svc = self.ctx.service('cloudLoadBalancers')
+        if self.id is None:
+            details = copy(self.details)
+            details['virtualIps'] = [
+                {
+                    'type': 'PUBLIC',
+                }
+            ]
+            r = svc.post("loadbalancers", { 'loadBalancer': details })
+        else:
+            details = {
+                'name': self.details['name'],
+                'protocol': self.details['protocol'],
+                'halfClosed': self.details['halfClosed'],
+                'algorithm': self.details['algorithm'],
+                'port': self.details['port'],
+                'timeout': self.details['timeout'],
+            }
+            r = svc.put("loadbalancers/{}".format(self.id), { 'loadBalancer': details })
+
+        if r.status_code != 202:
+            raise api.Error("{}: {}".format(r.reason, r.json()['message']))
+
     def fetch(self):
         r = self.svc.get("loadbalancers/{}".format(self.id))
         self.details = r.json()['loadBalancer']
 
     @property
+    def modified(self):
+        return self._modified
+
+    @property
+    def half_closed(self):
+        try:
+            return self.details['halfClosed']
+        except KeyError:
+            return False
+
+    @half_closed.setter
+    def half_closed(self, v):
+        self.details['halfClosed'] = v
+        self._modified = True
+
+    @property
     def name(self):
-        return self.details['name']
+        try:
+            return self.details['name']
+        except KeyError:
+            return None
+
+    @name.setter
+    def name(self, v):
+        if v == self.name:
+            return
+        self.details['name'] = v
+        self._modified = True
 
     @property
     def protocol(self):
-        return self.details['protocol']
+        try:
+            return self.details['protocol']
+        except KeyError:
+            return None
+
+    @protocol.setter
+    def protocol(self, v):
+        self.details['protocol'] = v
+        self._modified = True
 
     @property
     def port(self):
-        return self.details['port']
+        try:
+            return self.details['port']
+        except KeyError:
+            return None
+
+    @port.setter
+    def port(self, v):
+        self.details['port'] = v
+        self._modified = True
 
     @property
     def algorithm(self):
         return self.details['algorithm']
+
+    @algorithm.setter
+    def algorithm(self, v):
+        self.details['algorithm'] = v
+        self._modified = True
 
     @property
     def status(self):
@@ -58,6 +158,11 @@ class LoadBalancer(object):
     @property
     def timeout(self):
         return self.details['timeout']
+
+    @timeout.setter
+    def timeout(self, v):
+        self.details['timeout'] = v
+        self._modified = True
 
     @property
     def connection_logging_enabled(self):
@@ -121,11 +226,30 @@ class LoadBalancer(object):
         return [ LoadBalancer.VirtualIP(json) for json in self.details['virtualIps'] ]
 
     class Node(object):
-        def __init__(self, json):
+        TYPE_PRIMARY = 'PRIMARY'
+        TYPE_SECONDARY = 'SECONDARY'
+        CONDITION_ENABLED = 'ENABLED'
+        CONDITION_DRAINING = 'DRAINING'
+        CONDITION_DISABLED = 'DISABLED'
+
+        def __init__(self, lb, json = {}):
+            self.lb = lb
             self.json = json
+
+            if 'id' not in json:
+                self._modified = True
+            else:
+                self._modified = False
 
         def __str__(self):
             return "{}:{}".format(self.address, self.port)
+
+        @property
+        def id(self):
+            try:
+                return self.json['id']
+            except KeyError:
+                return None
 
         @property
         def address(self):
@@ -139,13 +263,54 @@ class LoadBalancer(object):
         def condition(self):
             return self.json['condition']
 
+        @condition.setter
+        def condition(self, v):
+            self.json['condition'] = v
+            self._modified = True
+
         @property
         def status(self):
             return self.json['status']
 
+        @property
+        def type(self):
+            return self.json['type']
+
+        @type.setter
+        def type(self, v):
+            self.json['type'] = v
+            self._modified = True
+
+        def save(self):
+            if not self._modified:
+                return
+
+            svc = self.lb.ctx.service('cloudLoadBalancers')
+            details = copy(self.json)
+
+            try:
+                del details['status']
+                del details['id']
+            except KeyError:
+                pass
+
+            if self.id is None:
+                r = svc.post("loadbalancers/{}/nodes".format(self.lb.id), { 'nodes': [ details ] })
+            else:
+                del details['address']
+                del details['port']
+                r = svc.put("loadbalancers/{}/nodes/{}".format(self.lb.id, self.id), { 'node': details })
+
+        def delete(self):
+            svc = self.lb.ctx.service('cloudLoadBalancers')
+            svc.delete("loadbalancers/{}/nodes/{}".format(self.lb.id, self.id))
+
     @property
     def nodes(self):
-        return [ LoadBalancer.Node(json) for json in self.details['nodes'] ]
+        try:
+            return [ LoadBalancer.Node(self, json) for json in self.details['nodes'] ]
+        except KeyError:
+            return []
 
     class SSLConfiguration(object):
         def __init__(self, json):
@@ -162,6 +327,10 @@ class LoadBalancer(object):
         @property
         def secure_only(self):
             return True if self.enabled and self.json['secureTrafficOnly'] else False
+
+        @property
+        def certificate(self):
+            return self.json['certificate']
 
     @property
     def ssl(self):
@@ -180,6 +349,10 @@ class LoadBalancer(object):
         @property
         def hostname(self):
             return self.json['hostName']
+
+        @property
+        def certificate(self):
+            return self.json['certificate']
 
         def delete(self):
             self.lb.svc.delete("loadbalancers/{}/ssltermination/certificatemappings/{}".format(self.lb.id, self.id))
@@ -201,3 +374,20 @@ class LoadBalancer(object):
                 }
             })
 
+    @property
+    def usage(self):
+        now = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+        one_hour_ago = now - datetime.timedelta(hours = 1)
+
+        r = self.svc.get("loadbalancers/{}/usage".format(self.id), { 'startTime': one_hour_ago.strftime("%Y-%m-%dT%H:%M:%S-00:00") })
+
+        data = r.json()['loadBalancerUsageRecords']
+        return {
+            'average_connections':
+                (  sum([ c['averageNumConnections'] for c in data ])
+                 + sum([ c['averageNumConnectionsSsl'] for c in data ])) / (len(data) * 2),
+            'incoming_bytes_per_second': 
+                sum([ c['incomingTransfer'] + c['incomingTransferSsl'] for c in data]) / (60 * 60),
+            'outgoing_bytes_per_second': 
+                sum([ c['outgoingTransfer'] + c['outgoingTransferSsl'] for c in data]) / (60 * 60),
+        }
