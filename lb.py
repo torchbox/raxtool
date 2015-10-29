@@ -27,7 +27,8 @@ def c_show(p, ctx, args):
 
         ] for lb in j['loadBalancers']
     ])
-    print t.draw()
+
+    print(t.draw())
 
 def c_no_lb(p, ctx, args):
     try:
@@ -90,7 +91,7 @@ def c_show_lb_nodes(p, ctx, args):
         lb = LoadBalancer.by_name(ctx, args[0])
     except api.Error, e:
         raise cli.Error(e)
-    print "\n".join([ str(n) for n in lb.nodes ])
+    print("\n".join([ str(n) for n in lb.nodes ]))
 
 def c_show_lb_node(p, ctx, args):
     try:
@@ -100,9 +101,9 @@ def c_show_lb_node(p, ctx, args):
 
     for n in lb.nodes:
         if str(n) == args[1]:
-            print "{}:".format(n)
-            print "    Condition: {}".format(n.condition)
-            print "       Status: {}".format(n.status)
+            print("{}:".format(n))
+            print("    Condition: {}".format(n.condition))
+            print("       Status: {}".format(n.status))
             return
     
     raise cli.CLIError("Load balancer node {} not found".format(args[1]))
@@ -112,35 +113,35 @@ def c_show_lb_protocol(p, ctx, args):
         lb = LoadBalancer.by_name(ctx, args[0])
     except api.Error, e:
         raise cli.Error(e)
-    print lb.protocol
+    print(lb.protocol)
 
 def c_show_lb_port(p, ctx, args):
     try:
         lb = LoadBalancer.by_name(ctx, args[0])
     except api.Error, e:
         raise cli.Error(e)
-    print lb.port
+    print(lb.port)
 
 def c_show_lb_algorithm(p, ctx, args):
     try:
         lb = LoadBalancer.by_name(ctx, args[0])
     except api.Error, e:
         raise cli.Error(e)
-    print lb.algorithm
+    print(lb.algorithm)
 
 def c_show_lb_cluster(p, ctx, args):
     try:
         lb = LoadBalancer.by_name(ctx, args[0])
     except api.Error, e:
         raise cli.Error(e)
-    print lb.cluster
+    print(lb.cluster)
 
 def c_show_lb_addresses(p, ctx, args):
     try:
         lb = LoadBalancer.by_name(ctx, args[0])
     except api.Error, e:
         raise cli.Error(e)
-    print "\n".join([ str(v) for v in lb.virtual_ips ])
+    print("\n".join([ str(v) for v in lb.virtual_ips ]))
 
 def c_show_lb_ssl(p, ctx, args):
     try:

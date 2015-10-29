@@ -196,7 +196,7 @@ class Parser(object):
                 mode_prompt = "({})".format('-'.join([ m.prompt for m in self.modes[1:] ]))
             else:
                 mode_prompt = ""
-            prompt = "{}{}> ".format(self.modes[0].prompt, mode_prompt)
+            prompt = "{}{}>".format(self.modes[0].prompt, mode_prompt)
 
             cmd = self.linereader.readline(prompt)
             if cmd.strip() == '':

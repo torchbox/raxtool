@@ -2,7 +2,7 @@
 # vim:set sw=4 ts=4 et:
 
 import sys, cli, commands, lb
-import rax.api, lb
+import rax.api, lb, cdn
 
 ctx = rax.api.Context()
 
@@ -31,10 +31,11 @@ class ConfigMode(cli.Mode):
             [ "no", None, "Remove or negate configuration" ],
         ])
         self.add_commands(lb.config_commands)
+        self.add_commands(cdn.config_commands)
 
 global_mode = cli.Mode('raxtool')
 global_mode.add_commands(lb.global_commands)
-#global_mode.add_commands(rax.cdn.commands)
+global_mode.add_commands(cdn.global_commands)
 global_mode.add_command("show", None, "Display configuration and status information")
 global_mode.add_command("exit", c_exit, "Exit raxtool")
 global_mode.add_command("configure", cli.set_mode(ConfigMode), "Enter configuration mode")
