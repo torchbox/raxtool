@@ -1,3 +1,11 @@
+cffi==1.3.0
+cryptography==1.1
+enum34==1.0.4
+idna==2.0
+ipaddress==1.0.14
+pyasn1==0.1.9
+pycparser==2.14
+pyOpenSSL==0.15.1
 python-dateutil==2.4.2
 pytz==2015.7
 requests==2.8.1
