@@ -205,7 +205,7 @@ class Parser(object):
             try:
                 self.mode.dispatch(self, cmd)
             except CLIError, e:
-                print("% {}".format(e))
+                print("% {}".format(str(e)))
 
 def _do_set_mode(mode, ctargs, parser, ctx, args):
     m = mode(ctx, args, *ctargs)

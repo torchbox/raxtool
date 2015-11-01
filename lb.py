@@ -41,7 +41,7 @@ def c_show_lb(p, ctx, args):
     try:
         lb = LoadBalancer.by_name(ctx, args[0])
     except api.Error, e:
-        raise cli.Error(e)
+        raise cli.CLIError(str(e))
 
     nodes = "\n".join([
         "     {address}:{port} ({condition}, {status})".format(
@@ -65,8 +65,8 @@ def c_show_lb(p, ctx, args):
   IP addresses: {ips}.
   Nodes:
 {nodes}
-  1 hour input rate {in_bytes} bytes/sec, average connections {avg_conn:0.2f}
-  1 hour output rate {out_bytes} bytes/sec
+  24 hour input rate {in_bytes:0.0f} bytes/sec, average connections {avg_conn:0.2f}
+  24 hour output rate {out_bytes:0.0f} bytes/sec
 """.format(
     name = lb.name,
     id = lb.id,

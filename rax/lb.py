@@ -18,7 +18,13 @@ class LoadBalancer(object):
     ALGORITHM_RANDOM = 'RANDOM'
 
     class NotFound(api.Error):
-        pass
+        def __init__(self, value):
+            self.value = value
+
+        def __str__(self):
+            return self.value
+        __repr__ = __str__
+        __unicode__ = __str__
 
     def __init__(self, ctx, id):
         self.id = id
@@ -377,16 +383,28 @@ class LoadBalancer(object):
     @property
     def usage(self):
         now = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
-        one_hour_ago = now - datetime.timedelta(hours = 1)
 
-        r = self.svc.get("loadbalancers/{}/usage".format(self.id), { 'startTime': one_hour_ago.strftime("%Y-%m-%dT%H:%M:%S-00:00") })
+        r = self.svc.get("loadbalancers/{}/usage/current".format(self.id))
 
         data = r.json()['loadBalancerUsageRecords']
+        start_time = None
+        end_time = None
+        for r in data:
+            s = dateutil.parser.parse(r['startTime'])
+            if start_time is None or start_time > s:
+                start_time = s
+        for r in data:
+            s = dateutil.parser.parse(r['endTime'])
+            if end_time is None or end_time < s:
+                end_time = s
+
+        timediff = end_time - start_time
+
         return {
             'average_connections':
                 sum([ c['averageNumConnections'] + c['averageNumConnectionsSsl'] for c in data ]) / len(data),
             'incoming_bytes_per_second': 
-                sum([ c['incomingTransfer'] + c['incomingTransferSsl'] for c in data]) / (60 * 60),
+                sum([ c['incomingTransfer'] + c['incomingTransferSsl'] for c in data]) / timediff.total_seconds(),
             'outgoing_bytes_per_second': 
-                sum([ c['outgoingTransfer'] + c['outgoingTransferSsl'] for c in data]) / (60 * 60),
+                sum([ c['outgoingTransfer'] + c['outgoingTransferSsl'] for c in data]) / timediff.total_seconds(),
         }
