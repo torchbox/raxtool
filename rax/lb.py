@@ -384,8 +384,7 @@ class LoadBalancer(object):
         data = r.json()['loadBalancerUsageRecords']
         return {
             'average_connections':
-                (  sum([ c['averageNumConnections'] for c in data ])
-                 + sum([ c['averageNumConnectionsSsl'] for c in data ])) / (len(data) * 2),
+                sum([ c['averageNumConnections'] + c['averageNumConnectionsSsl'] for c in data ]) / len(data),
             'incoming_bytes_per_second': 
                 sum([ c['incomingTransfer'] + c['incomingTransferSsl'] for c in data]) / (60 * 60),
             'outgoing_bytes_per_second': 

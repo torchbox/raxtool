@@ -65,7 +65,7 @@ def c_show_lb(p, ctx, args):
   IP addresses: {ips}.
   Nodes:
 {nodes}
-  1 hour input rate {in_bytes} bytes/sec, average connections {avg_conn:0.2}
+  1 hour input rate {in_bytes} bytes/sec, average connections {avg_conn:0.2f}
   1 hour output rate {out_bytes} bytes/sec
 """.format(
     name = lb.name,
