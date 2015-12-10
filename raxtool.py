@@ -13,7 +13,7 @@ if not ctx.check_token():
 
     try:
         ctx.login(region, username, apikey)
-    except rax.Error, e:
+    except rax.api.Error, e:
         print(e)
         sys.exit(1)
 
