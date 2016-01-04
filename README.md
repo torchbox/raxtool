@@ -7,7 +7,8 @@ A CLI tool for interacting with Rackspace Cloud API. Before you begin you will n
 To install the required packages:
 
 ```
-pip install -r requirements.txtpython raxtool.py
+pip install -r requirements.txt
+python raxtool.py
 ```
 
 The first time you run the command you will be prompted for your username, API key and which datacenter to use (e.g. LON, ORD, DFW).
