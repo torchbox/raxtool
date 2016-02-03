@@ -291,7 +291,7 @@ class LBSSLMode(cli.Mode):
     def c_no_map(self, p, ctx, args):
         mapping = None
         for cm in self.lb.ssl_mappings:
-            if cm.hostname == args[1]:
+            if cm.hostname == args[0]:
                 mapping = cm
                 break
 
