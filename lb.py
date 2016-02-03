@@ -274,7 +274,19 @@ class LBSSLMode(cli.Mode):
         except:
             raise cli.CLIError("Certificate file <{}> not found".format(args[4]))
 
-        self.lb.add_ssl_mapping(host, key, cert, chain)
+        # Do we already have a mapping for this hostname?
+        mapping = None
+        for cm in self.lb.ssl_mappings:
+            if cm.hostname == host:
+                mapping = cm
+                break
+
+        if mapping is None:
+            print('% Creating new mapping for "{}".'.format(host))
+            self.lb.add_ssl_mapping(host, key, cert, chain)
+        else:
+            print('% Replacing existing mapping for "{}".'.format(host))
+            mapping.update(key, cert, chain)
 
     def c_no_map(self, p, ctx, args):
         mapping = None

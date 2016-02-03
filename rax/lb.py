@@ -363,6 +363,18 @@ class LoadBalancer(object):
         def delete(self):
             self.lb.svc.delete("loadbalancers/{}/ssltermination/certificatemappings/{}".format(self.lb.id, self.id))
 
+        def update(self, key, cert, chain):
+            self.lb.svc.put(
+                "loadbalancers/{}/ssltermination/certificatemappings/{}".format(self.lb.id, self.id),
+                {
+                    'certificateMapping': {
+                        'hostName': self.hostname,
+                        'privateKey': key,
+                        'certificate': cert,
+                        'intermediateCertificate': chain,
+                    }
+                })
+
     @property
     def ssl_mappings(self):
         r = self.svc.get("loadbalancers/{}/ssltermination/certificatemappings".format(self.id))
