@@ -21,6 +21,12 @@ Region (e.g. LON): ORD
 raxtool>
 ```
 
+You may want to run inside a docker container.
+
+```
+docker run -v "`pwd`:/raxtool" -it python:2.7 /bin/sh -c 'cd /raxtool ; pip install -r requirements.txt ; ./raxtool.py'
+```
+
 ## Examples
 
 Show all loadbalancers:
@@ -39,4 +45,14 @@ Show SSL mappings.
 
 ```
 raxtool> show lb fe-1-dist ssl maps
+```
+
+Update an SSL mapping.
+
+```
+
+raxtool> config
+raxtool(config)> lb fe-1-dist
+raxtool(config-lb)> ssl
+raxtool(config-lb-ssl)> map host www.domain.com key www.domain.com.key certificate www.domain.com.crt chain www.domain.com.ca-bundle
 ```
