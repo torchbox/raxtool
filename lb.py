@@ -34,7 +34,7 @@ def c_no_lb(p, ctx, args):
     try:
         lb = LoadBalancer.by_name(ctx, args[0])
     except api.Error, e:
-        raise cli.Error(e)
+        raise cli.CLIError(e)
     lb.delete()
 
 def c_show_lb(p, ctx, args):
@@ -281,12 +281,15 @@ class LBSSLMode(cli.Mode):
                 mapping = cm
                 break
 
-        if mapping is None:
-            print('% Creating new mapping for "{}".'.format(host))
-            self.lb.add_ssl_mapping(host, key, cert, chain)
-        else:
-            print('% Replacing existing mapping for "{}".'.format(host))
-            mapping.update(key, cert, chain)
+        try:
+            if mapping is None:
+                print('% Creating new mapping for "{}".'.format(host))
+                self.lb.add_ssl_mapping(host, key, cert, chain)
+            else:
+                print('% Replacing existing mapping for "{}".'.format(host))
+                mapping.update(key, cert, chain)
+        except api.Error, e:
+            raise cli.CLIError(str(e))
 
     def c_no_map(self, p, ctx, args):
         mapping = None

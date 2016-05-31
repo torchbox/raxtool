@@ -392,6 +392,9 @@ class LoadBalancer(object):
                 }
             })
 
+        if r.status_code != 202:
+            raise api.Error("{}: {}".format(r.reason, r.json()['message']))
+
     @property
     def usage(self):
         now = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
