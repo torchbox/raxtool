@@ -4,7 +4,6 @@ import dateutil, datetime, pytz
 from functools import partial
 from copy import copy
 from texttable import Texttable
-import cli
 from rax import api
 
 class LoadBalancer(object):
