@@ -318,29 +318,75 @@ class LoadBalancer(object):
             return []
 
     class SSLConfiguration(object):
-        def __init__(self, json):
+        def __init__(self, lb, json):
+            self.lb = lb
             self.json = json
+            self._modified = False
+
+        def save(self):
+            if not self._modified:
+                return
+
+            svc = self.lb.ctx.service('cloudLoadBalancers')
+            r = svc.put("loadbalancers/{}/ssltermination".format(self.lb.id, self.id), { 'ssltermination': self.json })
 
         @property
         def enabled(self):
             return self.json['enabled']
 
+        @enabled.setter
+        def enabled(self, v):
+            self.json['enabled'] = v
+            self._modified = True
+
         @property
         def port(self):
             return self.json['securePort'] if self.enabled else None
+
+        @port.setter
+        def port(self, v):
+            self.json['securePort'] = v
+            self._modified = True
 
         @property
         def secure_only(self):
             return True if self.enabled and self.json['secureTrafficOnly'] else False
 
+        @secure_only.setter
+        def secure_only(self, v):
+            self.json['secureTrafficOnly'] = v
+            self._modified = True
+
         @property
         def certificate(self):
             return self.json['certificate']
 
+        @certificate.setter
+        def certificate(self, c):
+            self.json['certificate'] = c
+
+        @property
+        def privatekey(self):
+            return self.json['privatekey']
+
+        @privatekey.setter
+        def privatekey(self, k):
+            self.json['privatekey'] = k
+            self._modified = True
+
+        @property
+        def intermediate_certificate(self):
+            return self.json['intermediateCertificate']
+
+        @intermediate_certificate.setter
+        def intermediate_certificate(self, c):
+            self.json['intermediateCertificate'] = c
+            self._modified = True
+
     @property
     def ssl(self):
         r = self.svc.get("loadbalancers/{}/ssltermination".format(self.id))
-        return LoadBalancer.SSLConfiguration(r.json()['sslTermination'])
+        return LoadBalancer.SSLConfiguration(self, r.json()['sslTermination'])
 
     class SSLMapping(object):
         def __init__(self, lb, json):
