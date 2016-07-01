@@ -328,7 +328,7 @@ class LoadBalancer(object):
                 return
 
             svc = self.lb.ctx.service('cloudLoadBalancers')
-            r = svc.put("loadbalancers/{}/ssltermination".format(self.lb.id, self.id), { 'ssltermination': self.json })
+            r = svc.put("loadbalancers/{}/ssltermination".format(self.lb.id), { 'sslTermination': self.json })
 
         @property
         def enabled(self):
