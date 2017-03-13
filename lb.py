@@ -174,6 +174,16 @@ def c_show_lb_ssl_certs(p, ctx, args):
 
     for map in lb.ssl_mappings:
         r = lb.svc.get("loadbalancers/{}/ssltermination/certificatemappings/{}".format(lb.id, map.id))
+        js = r.json()
+
+        if 'certificateMapping' not in js:
+            sys.stdout.write("Warning: for hostname {}, didn't find certificate mapping in response.\n".format(map.hostname))
+            continue
+
+        certmap = js['certificateMapping']
+        if 'certificate' not in certmap:
+            sys.stdout.write("Warning: for hostname {}, didn't find certificate in response.\n".format(map.hostname))
+            continue
 
         cert = crypto.load_certificate(crypto.FILETYPE_PEM, r.json()['certificateMapping']['certificate'].replace("\n\n", "\n"))
 
@@ -348,6 +358,8 @@ class LBMode(cli.Mode):
             [ 'algorithm weighted-round-robin',
                 partial(self.c_algorithm, LoadBalancer.ALGORITHM_WEIGHTED_ROUND_ROBIN),
                 "As round-robin, but with node weight considered"],
+            [ 'timeout', None, 'Set backend read timeout' ],
+            [ 'timeout <seconds>', self.c_timeout, '(30-120)' ],
             [ 'no', None, 'Remove or negate configuration options' ],
             [ 'no half-closed', self.c_no_half_closed, 'Disable half-closed connection support ' ],
             [ 'no node', None, 'Remove a node' ],
@@ -382,6 +394,9 @@ class LBMode(cli.Mode):
 
     def c_no_half_closed(self, parser, ctx, args):
         self.lb.half_closed = False
+
+    def c_timeout(self, parser, ctx, args):
+        self.lb.timeout = args[0]
 
     def c_commit(self, parser, ctx, args):
         if self.lb.port == None:
