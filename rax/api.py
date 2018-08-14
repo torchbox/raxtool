@@ -1,7 +1,7 @@
 # vim:sw=4 ts=4 et:
 
 import dateutil.parser, pytz, datetime, os, requests, logging, json, warnings
-IDENTITY_ENDPOINT = 'https://identity.api.rackspacecloud.com/v2.0/'
+IDENTITY_ENDPOINT = 'https://identity.api.rackspacecloud.com/v2.0'
 
 #import httplib as http_client
 #http_client.HTTPConnection.debuglevel = 1
